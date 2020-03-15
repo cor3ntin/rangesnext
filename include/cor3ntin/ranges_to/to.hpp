@@ -1,3 +1,5 @@
+#pragma once
+#include <type_traits>
 #include <iterator>
 #include <algorithm>
 #include <ranges>
@@ -29,18 +31,19 @@ namespace detail {
         typename std::tuple_size<T>::type;
     } &&  std::tuple_size_v<T> == 2;
 
-    /*template <template <typename...> typename C, typename RangeType, typename... Args>
-    auto check_is_map() {
-        decltype(C(std::initializer_list<})
-    }*/
-
-    // This is a
     template <template <typename...> typename C, typename RangeType, typename... Args>
     concept maybe_associative_cont = pair_like<RangeType>
-                                  && is_template_instantiable_v<C,
+                                   && is_template_instantiable_v<C,
                                         std::tuple_element_t<0, RangeType>,
                                         std::tuple_element_t<1, RangeType>,
                                         std::allocator<RangeType>>;
+
+    template <template <typename...> typename C, typename RangeType, typename... Args>
+    concept maybe_associative_cont_expr = maybe_associative_cont<C, RangeType, Args...>;
+
+
+    template<typename T>
+    inline constexpr bool always_false_v = false;
 
 
     template<r::range Rng>
@@ -102,20 +105,65 @@ namespace detail {
     template<template<class...> class T>
     struct wrap{};
 
-    template<typename Cont, typename RangeType,  typename...Args>
+    template<r::range Rng>
+    static auto get_begin(Rng &&rng)  {
+        using It = r::iterator_t<Rng>;
+        if constexpr(!(std::copyable<It>)) {
+            return r::begin(rng);
+        }
+        else {
+            using I = range_common_iterator<const Rng&>;
+            I begin = I(r::begin(rng));
+            if constexpr(std::is_rvalue_reference_v<decltype(rng)>) {
+                return std::make_move_iterator(std::move(begin));
+            }
+            else {
+                return begin;
+            }
+        }
+    }
+    template<r::range Rng>
+    static auto get_end(Rng &&rng){
+        using It = r::iterator_t<Rng>;
+        if constexpr(!(std::copyable<It>)) {
+            return r::end(rng);
+        }
+        else {
+            using I = range_common_iterator<const Rng&>;
+            I end = I(r::end(rng));
+            if constexpr(std::is_rvalue_reference_v<decltype(rng)>) {
+                return std::make_move_iterator(std::move(end));
+            }
+            else {
+                return end;
+            }
+        }
+    }
+
+    template<typename Cont, typename Rng,  typename...Args>
     struct unwrap {
         using type = Cont;
     };
 
-    template<template<class...> class Cont, typename RangeType, typename...Args>
-    struct unwrap<wrap<Cont>, RangeType, Args...> {
-        using type = Cont<RangeType, Args...>;
-    };
+    template<template<class...> class Cont, typename Rng, typename...Args>
+    struct unwrap<wrap<Cont>, Rng, Args...> {
+        template<typename R>
+        static auto from_rng(int) -> decltype(
+            Cont(std::declval<decltype(get_begin(std::declval<R>())())>(),
+                 std::declval<decltype(get_end(std::declval<R>())())>(),
+                 std::declval<Args>()...
+                 ));
 
-    template<template<class...> class Cont, typename RangeType, typename...Args>
-    requires maybe_associative_cont<Cont, RangeType, Args...>
-    struct unwrap<wrap<Cont>, RangeType, Args...> {
-        using type = associative_container_t<Cont, RangeType, Args...>;
+        template<typename R>
+        static auto from_rng(long) {
+            return std::add_pointer_t<Cont<r::range_value_t<R>, Args...>>(nullptr);
+        }
+        template<typename R>
+        requires maybe_associative_cont<Cont, r::range_value_t<R>, Args...>
+        static auto from_rng(long) {
+            return std::add_pointer_t<associative_container_t<Cont, r::range_value_t<R>, Args...>>(nullptr);
+        }
+        using type = std::remove_cvref_t<std::remove_pointer_t<decltype(from_rng<Rng>(0))>>;
     };
 
     template <typename T, typename Rng>
@@ -124,48 +172,12 @@ namespace detail {
     };
 
     template <typename T>
-    concept associative_container = requires {
-        typename T::mapped_type;
-        typename T::key_type;
+    concept insertable_container = requires(T &c, T::value_type & e) {
+        c.push_back(e);
     };
 
     struct to_container  {
     private:
-        template<r::range Rng>
-        static auto get_begin(Rng &&rng)  {
-            using It = r::iterator_t<Rng>;
-            if constexpr(!(std::copyable<It>)) {
-                return r::begin(rng);
-            }
-            else {
-                using I = range_common_iterator<const Rng&>;
-                I begin = I(r::begin(rng));
-                if constexpr(std::is_rvalue_reference_v<decltype(rng)>) {
-                    return std::make_move_iterator(std::move(begin));
-                }
-                else {
-                    return begin;
-                }
-            }
-        }
-        template<r::range Rng>
-        static auto get_end(Rng &&rng){
-            using It = r::iterator_t<Rng>;
-            if constexpr(!(std::copyable<It>)) {
-                return r::end(rng);
-            }
-            else {
-                using I = range_common_iterator<const Rng&>;
-                I end = I(r::end(rng));
-                if constexpr(std::is_rvalue_reference_v<decltype(rng)>) {
-                    return std::make_move_iterator(std::move(end));
-                }
-                else {
-                    return end;
-                }
-            }
-        }
-
         template<typename I, typename Sentinel, typename Value>
         struct iterator {
         private:
@@ -247,40 +259,30 @@ namespace detail {
             }
         };
 
-        /*template<typename ToContainer, typename Rn, typename... A>
-        auto _get_container_type(Rng&& rng, Args&&... args) {
-            if constexpr(requires {
-                ToContainer(
-                    get_begin(std::forward<Rng>(rng)),
-                    get_end(std::forward<Rng>(rng)),
-                    std::forward<Args>(args...));
-            })
-                return ToContainer(
-                    get_begin(std::forward<Rng>(rng)),
-                    get_end(std::forward<Rng>(rng)),
-                    std::forward<Args>(args...));
-            else {
-
-            }
-        }*/
-
-        template<typename ToContainer, typename Rng>
-        using container_t = typename unwrap<ToContainer, r::range_value_t<Rng>>::type;
+        template<typename ToContainer, typename Rng, typename... Args>
+        using container_t = typename unwrap<ToContainer, Rng, Args...>::type;
 
         template <typename C, typename... Args>
         struct fn {
         private:
             template<typename Cont, typename Rng, typename It, typename Sentinel>
             constexpr static auto from_iterators(It begin, Sentinel end, Rng&& rng, Args&&... args) {
+                // copy or move (optimization)
                 if constexpr(std::constructible_from<Cont, Rng, Args...>) {
                     return Cont(std::forward<Rng>(rng), std::forward<Args>(args)...);
                 }
-                else if constexpr(!associative_container<Cont> && r::sized_range<Rng> && reservable_container<Cont, Rng> && std::constructible_from<Cont, Args...>) {
-                    Cont c(std::forward<Args...>(args)...);
-                    c.reserve(r::size(rng));
-                    r::copy(std::move(begin), std::move(end), std::back_inserter(c));
-                    return c;
+                // we can do push back
+                else if constexpr(
+                    insertable_container<Cont>
+                    && r::sized_range<Rng>
+                    && reservable_container<Cont, Rng>
+                    && std::constructible_from<Cont, Args...>) {
+                        Cont c(std::forward<Args...>(args)...);
+                        c.reserve(r::size(rng));
+                        r::copy(std::move(begin), std::move(end), std::back_inserter(c));
+                        return c;
                 }
+                // default case
                 else if constexpr(std::constructible_from<Cont, It, Sentinel, Args...>) {
                     return Cont(std::move(begin), std::move(end), std::forward<Args>(args)...);
                 }
@@ -291,8 +293,7 @@ namespace detail {
                     return c;
                 }
                 else {
-                    struct invalid_container_type{};
-                    return invalid_container_type{};
+                    static_assert(always_false_v<Cont>, "Can't construct a container");
                 }
             }
 
@@ -318,9 +319,9 @@ namespace detail {
         public:
             template<typename Rng>
             requires r::input_range<Rng>
-            && recursive_container_convertible<container_t<C, Rng>, Rng&&>
+            && recursive_container_convertible<container_t<C, Rng, Args...>, Rng&&>
             inline constexpr auto operator()(Rng &&rng, Args&&... args) const {
-                return impl<container_t<C, Rng>>(std::forward<Rng>(rng), std::forward<Args>(args)...);
+                return impl<container_t<C, Rng, Args...>>(std::forward<Rng>(rng), std::forward<Args>(args)...);
             }
         };
 

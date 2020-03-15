@@ -107,12 +107,14 @@ TEST_CASE("Conversion from vector to associative containers with unspecified typ
         {2, 2},
         {3, 3},
     } ;
-    using ex = std::map<int, int>;
     using alloc = std::allocator<std::pair<const int, int>>;
+    using ex = std::map<int, int, std::less<int>, alloc>;
 
-    STATIC_REQUIRE(std::same_as<decltype(ranges_to::to<std::map>(vec, alloc())), ex>);
-    CHECK(eq(vec, vec | ranges_to::to<std::map> | ranges_to::to<std::vector<std::pair<int, int>>>));
+    STATIC_REQUIRE(std::same_as<decltype(ranges_to::to<std::map>(vec, std::less<int>{}, alloc())), ex>);
+    CHECK(eq(vec, ranges_to::to<std::map>(vec, std::less<int>{}, alloc())
+        | ranges_to::to<std::vector<std::pair<int, int>>>));
 }
+
 
 TEST_CASE("Non-sized ranges") {
     auto ints = std::vector{1, 2, 3, 4, 5, 6};
