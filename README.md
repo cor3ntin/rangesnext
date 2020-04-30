@@ -8,14 +8,14 @@ which converts a ranges to a container
 **This project requires a conformant `<ranges>` implementation.**
 Only GCC trunk is known to support this library.
 
-Assuming the project is clone in a `ranges_to` directory
+Assuming the project is clone in a `rangesnext` directory
 
 If your are using cmake:
 
 ```
-add_subdirectory(ranges_to EXCLUDE_FROM_ALL)
-target_link_libraries(your_target ranges_to)
+add_subdirectory(rangesnext EXCLUDE_FROM_ALL)
+target_link_libraries(your_target rangesnext)
 ```
 
-Otherwise, just add `ranges_to/include` to
+Otherwise, just add `rangesnext/include` to
 the include path.

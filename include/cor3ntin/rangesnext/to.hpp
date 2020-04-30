@@ -41,34 +41,6 @@ namespace r = std::ranges;
 template <typename T>
 concept container_like = (r::range<T> && !r::view<T>);
 
-template <template <class...> class C, typename Rng, typename... Args>
-using associative_container_t =
-    C<std::tuple_element_t<0, Rng>, std::tuple_element_t<1, Rng>, Args...>;
-
-template <template <typename...> typename T, typename _, typename... Ts>
-struct is_template_instantiable : std::false_type {};
-
-template <template <typename...> typename T, typename... Ts>
-struct is_template_instantiable<T, std::void_t<decltype(sizeof(T<Ts...>))>,
-                                Ts...> : std::true_type {};
-
-template <template <typename...> typename T, typename... Ts>
-inline constexpr auto is_template_instantiable_v =
-    is_template_instantiable<T, void, Ts...>::value;
-
-template <class T>
-concept pair_like = requires {
-        typename std::tuple_size<T>::type;
-    }
-    && std::tuple_size_v<T> == 2;
-
-template <template <typename...> typename C, typename RangeType,
-          typename... Args>
-concept maybe_associative_cont =
-    pair_like<RangeType> &&is_template_instantiable_v<
-        C, std::tuple_element_t<0, RangeType>,
-        std::tuple_element_t<1, RangeType>, std::allocator<RangeType>>;
-
 template <typename T>
 inline constexpr bool always_false_v = false;
 
@@ -78,10 +50,32 @@ struct range_common_iterator_impl {
         std::common_iterator<std::ranges::iterator_t<Rng>, r::sentinel_t<Rng>>;
 };
 
+template <typename Rng>
+struct dummy_input_iterator {
+    using iterator_category = std::input_iterator_tag;
+    using value_type = std::ranges::range_value_t<Rng>;
+    using difference_type = std::ranges::range_difference_t<Rng>;
+    ;
+    using pointer = std::ranges::range_value_t<Rng> *;
+    using reference = std::ranges::range_reference_t<Rng>;
+
+    int operator*() const;
+    bool operator==(const dummy_input_iterator &other) const;
+    reference operator++(int);
+    dummy_input_iterator &operator++();
+};
+
 template <r::common_range Rng>
 struct range_common_iterator_impl<Rng> {
     using type = r::iterator_t<Rng>;
 };
+
+template <r::range Rng>
+requires(!std::copyable<
+         std::ranges::iterator_t<Rng>>) struct range_common_iterator_impl<Rng> {
+    using type = dummy_input_iterator<Rng>;
+};
+
 template <r::range Rng>
 using range_common_iterator = typename range_common_iterator_impl<Rng>::type;
 
@@ -97,9 +91,8 @@ struct container_value<C> {
 };
 template <typename C>
 requires(!requires {
-        typename r::range_value_t<C>;
-    })
-struct container_value<C> {
+    typename r::range_value_t<C>;
+}) struct container_value<C> {
     using type = typename C::value_type;
 };
 
@@ -170,23 +163,9 @@ struct unwrap {
 template <template <class...> class Cont, typename Rng, typename... Args>
 struct unwrap<wrap<Cont>, Rng, Args...> {
     template <typename R>
-    static auto from_rng(int) -> decltype(
-        Cont(std::declval<decltype(get_begin(std::declval<R>())())>(),
-             std::declval<decltype(get_end(std::declval<R>())())>(),
-             std::declval<Args>()...));
-
-    template <typename R>
-    static auto from_rng(long) {
-        return std::add_pointer_t<Cont<r::range_value_t<R>, Args...>>(nullptr);
-    }
-    template <typename R>
-    requires maybe_associative_cont<Cont, r::range_value_t<R>,
-                                    Args...> static auto
-    from_rng(long) {
-        return std::add_pointer_t<
-            associative_container_t<Cont, r::range_value_t<R>, Args...>>(
-            nullptr);
-    }
+    static auto from_rng(int) -> decltype(Cont(range_common_iterator<Rng>(),
+                                               range_common_iterator<Rng>(),
+                                               std::declval<Args>()...));
     using type =
         std::remove_cvref_t<std::remove_pointer_t<decltype(from_rng<Rng>(0))>>;
 };
