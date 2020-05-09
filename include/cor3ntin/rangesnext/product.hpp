@@ -1,7 +1,7 @@
 /*
-Copyright (c) 2020 Corentin Jabot
+Copyright (c) 2020 - present Corentin Jabot
 
-Licenced under modified MIT license. See LICENSE.md for details.
+Licenced under Boost Software License. See LICENSE.md for details.
 */
 
 #pragma once

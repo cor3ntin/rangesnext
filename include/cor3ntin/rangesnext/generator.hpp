@@ -6,7 +6,7 @@ Copyright (c) 2017 - present Lewis Baker
 Thhis code has been adapted from cppcoro
 https://github.com/lewissbaker/cppcoro
 
-Licenced under Modified MIT license.
+Licenced under Boost Software License license.
 See LICENSE.md for details.
 */
 
