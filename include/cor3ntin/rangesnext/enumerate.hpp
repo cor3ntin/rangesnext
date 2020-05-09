@@ -32,16 +32,23 @@ requires r::view<V> class enumerate_view
     struct iterator {
       private:
         using Base = std::conditional_t<Const, const V, V>;
+        using count_type = decltype([] {
+            if constexpr (r::sized_range<Base>)
+                return r::range_size_t<Base>();
+            else {
+                return std::make_unsigned_t<r::range_difference_t<Base>>();
+            }
+        }());
 
         struct result {
-            r::range_difference_t<V> index;
+            count_type index;
             r::range_reference_t<Base> value;
 
             constexpr bool operator==(const result &other) const = default;
         };
 
         r::iterator_t<Base> current_ = r::iterator_t<Base>();
-        r::range_difference_t<Base> pos_ = 0;
+        count_type pos_ = 0;
 
         template <bool>
         friend class iterator;
@@ -74,7 +81,7 @@ requires r::view<V> class enumerate_view
         }
 
         constexpr auto operator*() const {
-            return result{pos_, *current_};
+            return result{static_cast<count_type>(pos_), *current_};
         }
 
         constexpr iterator &operator++() {
@@ -150,8 +157,7 @@ requires r::view<V> class enumerate_view
 
         constexpr decltype(auto) operator[](difference_type n) const
             requires r::random_access_range<Base> {
-            return result{static_cast<difference_type>(pos_ + n),
-                          *(current_ + n)};
+            return result{static_cast<count_type>(pos_ + n), *(current_ + n)};
         }
 
         friend constexpr bool operator==(

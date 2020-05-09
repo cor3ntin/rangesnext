@@ -18,4 +18,4 @@ target_link_libraries(rangesnext_test rangesnext Catch2)
 add_test(NAME rangesnext COMMAND rangesnext_test)
 
 
-target_compile_options(rangesnext_test PRIVATE -fcoroutines -fconcepts-diagnostics-depth=50)
+target_compile_options(rangesnext_test PRIVATE -fcoroutines -fconcepts-diagnostics-depth=50 -Wall -Wextra)

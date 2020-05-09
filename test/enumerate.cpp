@@ -6,11 +6,24 @@ Licenced under modified MIT license. See LICENSE.md for details.
 
 #include <catch2/catch.hpp>
 #include <cor3ntin/rangesnext/enumerate.hpp>
-#include <iostream>
+#include <list>
 #include <sstream>
-#include <tuple>
+#include <vector>
 
 namespace r = std::ranges;
+
+template <class RangeT>
+void test_enumerate_with(RangeT &&range) {
+    auto enumerated_range = rangesnext::enumerate(range);
+
+    std::size_t idx_ref = 0;
+    auto it_ref = r::begin(range);
+
+    for (auto &&[i, v] : enumerated_range) {
+        CHECK(i == idx_ref++);
+        CHECK(v == *it_ref++);
+    }
+}
 
 TEST_CASE("Input ranges", "[Enumerate]") {
     auto ints = std::istringstream{"1 2 3 4"};
@@ -35,7 +48,45 @@ TEST_CASE("Bidi ranges", "[Enumerate]") {
 
     CHECK(r::equal(r::reverse_view(v | rangesnext::enumerate), expected,
                    [](const auto &a, const auto &b) {
-                       std::cout << a.index << a.value;
                        return std::tuple{a.index, a.value} == b;
                    }));
+}
+
+TEST_CASE("Test different range types", "[Enumerate]") {
+
+    SECTION("array") {
+        int const es[] = {9, 8, 7, 6, 5, 4, 3, 2, 1, 0};
+        test_enumerate_with(es);
+    }
+    SECTION("complex types") {
+        std::vector<std::list<int>> range{
+            {1, 2, 3}, {3, 5, 6, 7}, {10, 5, 6, 1}, {1, 2, 3, 4}};
+        const auto rcopy = range;
+
+        test_enumerate_with(range);
+        CHECK(rcopy == range);
+
+        // check with empty range
+        range.clear();
+        test_enumerate_with(range);
+    }
+    SECTION("initializer_list") {
+        test_enumerate_with(
+            std::initializer_list<int>{9, 8, 7, 6, 5, 4, 3, 2, 1});
+    }
+    SECTION("iota") {
+        auto range = r::views::iota(0, 0);
+        test_enumerate_with(range);
+
+        range = r::views::iota(-10000, 10000);
+        test_enumerate_with(range);
+    }
+    SECTION("max") {
+        auto range = r::views::iota((std::uintmax_t)0, (std::uintmax_t)0);
+        test_enumerate_with(range);
+
+        auto range2 =
+            r::views::iota((std::intmax_t)-10000, (std::intmax_t)10000);
+        test_enumerate_with(range2);
+    }
 }
