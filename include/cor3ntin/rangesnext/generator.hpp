@@ -20,29 +20,6 @@ See LICENSE.md for details.
 #include <type_traits>
 
 namespace cor3ntin::rangesnext {
-template <typename T>
-class generator;
-
-namespace detail {
-template <typename T>
-struct box : std::optional<T> {
-    using std::optional<T>::optional;
-};
-template <typename T>
-struct box<T &> {
-    box() = default;
-    box(T &u) {
-        value = std::addressof(u);
-    }
-    decltype(auto) operator*() const {
-        return *value;
-    }
-
-  private:
-    T *value = nullptr;
-};
-
-} // namespace detail
 
 template <typename T>
 class [[nodiscard]] generator : std::ranges::view_interface<generator<T>> {
@@ -55,7 +32,11 @@ class [[nodiscard]] generator : std::ranges::view_interface<generator<T>> {
 
         promise() = default;
 
-        generator<T> get_return_object() noexcept;
+        auto get_return_object() noexcept {
+
+            return generator{
+                std::coroutine_handle<promise_type>::from_promise(*this)};
+        }
 
         constexpr std::suspend_always initial_suspend() const {
             return {};
@@ -64,16 +45,14 @@ class [[nodiscard]] generator : std::ranges::view_interface<generator<T>> {
             return {};
         }
 
-        template <typename U = T>
-        requires(!std::is_reference_v<T>) std::suspend_always
-            yield_value(U value) noexcept {
-            m_value = std::forward<U>(value);
+        // template <typename U = T>
+        std::suspend_always yield_value(value_type &&value) noexcept {
+            m_value = std::addressof(value);
             return {};
         }
 
-        std::suspend_always yield_value(T &value) noexcept
-            requires std::is_reference_v<T> {
-            m_value = value;
+        std::suspend_always yield_value(value_type &value) noexcept {
+            m_value = std::addressof(value);
             return {};
         }
 
@@ -93,7 +72,7 @@ class [[nodiscard]] generator : std::ranges::view_interface<generator<T>> {
         }
 
       private:
-        detail::box<T> m_value;
+        pointer_type m_value;
     };
 
     struct sentinel {};
@@ -149,6 +128,8 @@ class [[nodiscard]] generator : std::ranges::view_interface<generator<T>> {
     };
 
   public:
+    using promise_type = promise;
+
     generator() = default;
 
     generator(generator && other) noexcept : m_coroutine(other.m_coroutine) {
@@ -184,25 +165,12 @@ class [[nodiscard]] generator : std::ranges::view_interface<generator<T>> {
     }
 
   private:
-    // friend class promise<T>;
-
     explicit generator(std::coroutine_handle<promise> coroutine) noexcept
         : m_coroutine(coroutine) {
     }
 
     std::coroutine_handle<promise> m_coroutine = nullptr;
 };
-
-template <typename T>
-void swap(generator<T> &a, generator<T> &b) {
-    a.swap(b);
-}
-
-template <typename T>
-generator<T> generator<T>::promise::get_return_object() noexcept {
-    using coroutine_handle = std::coroutine_handle<generator<T>::promise>;
-    return generator<T>{coroutine_handle::from_promise(*this)};
-}
 
 static_assert(std::ranges::input_range<generator<int>>);
 static_assert(!std::ranges::forward_range<generator<int>>);
