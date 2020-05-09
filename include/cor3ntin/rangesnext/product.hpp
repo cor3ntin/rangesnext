@@ -1,47 +1,24 @@
-#include <functional>
+/*
+Copyright (c) 2020 Corentin Jabot
+
+Licenced under modified MIT license. See LICENSE.md for details.
+*/
+
+#pragma once
+
+#include <cor3ntin/rangesnext/__detail.hpp>
 #include <ranges>
-#include <sstream>
 #include <tuple>
-#include <vector>
 
 namespace rangesnext {
 
 namespace r = std::ranges;
 
 namespace detail {
-template <class F, class Tuple, std::size_t... I>
-constexpr decltype(auto) apply_impl(F &&f, const Tuple &t,
-                                    std::index_sequence<I...>) {
-    return f(std::get<std::tuple_size_v<std::remove_reference_t<Tuple>> - 1>(t),
-             std::get<I>(t)...);
-}
-
-template <class F, class Tuple>
-constexpr decltype(auto) apply_last(F &&f, const Tuple &t) {
-    return detail::apply_impl(
-        std::forward<F>(f), t,
-        std::make_index_sequence<std::tuple_size_v<std::remove_cvref_t<Tuple>> -
-                                 1>{});
-}
 
 template <typename First, typename... R>
 constexpr bool valid_product_pack(r::input_range<First> &&
                                   (r::forward_range<R> && ...));
-
-template <typename T>
-concept has_iterator_category = requires {
-    typename std::iterator_traits<r::iterator_t<T>>::iterator_category;
-};
-
-template <typename T>
-concept has_iterator_concept = requires {
-    typename std::iterator_traits<r::iterator_t<T>>::iterator_concept;
-};
-
-template <class R>
-concept simple_view = r::view<R> &&r::range<const R>
-    &&std::same_as<r::iterator_t<R>, r::iterator_t<const R>>
-        &&std::same_as<r::sentinel_t<R>, r::sentinel_t<const R>>;
 
 } // namespace detail
 
@@ -72,38 +49,8 @@ template <r::view... V>
         template <bool IsConst11>
         friend class product_view::sentinel;
 
-        static constexpr auto iter_cat() {
-            if constexpr ((r::random_access_range<V> && ...))
-                return std::random_access_iterator_tag{};
-            else if constexpr ((r::bidirectional_range<V> && ...))
-                return std::bidirectional_iterator_tag{};
-            else if constexpr ((r::forward_range<V> && ...))
-                return std::forward_iterator_tag{};
-            else if constexpr ((r::input_range<V> && ...))
-                return std::input_iterator_tag{};
-            else
-                return std::output_iterator_tag{};
-        }
-
       public:
-        template <typename T>
-        static auto get_cat() {
-            if constexpr (detail::has_iterator_category<r::iterator_t<T>>) {
-                return std::iterator_traits<
-                    r::iterator_t<T>>::iterator_category();
-            }
-            return std::input_iterator_tag();
-        }
-        template <typename T>
-        static auto get_concept() {
-            if constexpr (detail::has_iterator_concept<r::iterator_t<T>>) {
-                return std::iterator_traits<
-                    r::iterator_t<T>>::iterator_concept();
-            }
-            return std::output_iterator_tag();
-        }
-
-        using iterator_category = decltype(iter_cat());
+        using iterator_category = decltype(detail::iter_cat<V...>());
         using value_type = result;
         using difference_type = std::common_type_t<r::range_difference_t<V>...>;
 
@@ -383,32 +330,3 @@ struct product_view_fn {
 inline detail::product_view_fn product;
 
 } // namespace rangesnext
-
-int main() {
-    auto symbols = std::istringstream{"+ - *"};
-    auto sv = std::ranges::istream_view<char>(symbols);
-
-    std::vector a{'a', 'b', 'c', 'd'};
-    std::vector b{1, 2, 3};
-    std::vector c{0.1, 0.2, 0.3, 0.4, 0.5};
-
-    {
-        auto v = rangesnext::product(sv, a);
-
-        static_assert(std::ranges::range<decltype(v)>);
-
-        for (auto &&[s, n] : v) {
-            printf("%c %d \n", s, n);
-        }
-    }
-
-    {
-        auto v = rangesnext::product_view(a, b, c);
-
-        static_assert(std::ranges::range<decltype(v)>);
-
-        for (auto &&[l, n, f] : std::ranges::reverse_view(v)) {
-            printf("%c %d %.1f\n", l, n, f);
-        }
-    }
-}

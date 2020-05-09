@@ -1,4 +1,4 @@
-Copyright (c) 2019 Corentin Jabot, Christopher Di Bella, Eric Niebler, Casey Carter
+Copyright (c) 2020 - present Corentin Jabot
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the

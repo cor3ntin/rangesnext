@@ -1,5 +1,13 @@
+/*
+Copyright (c) 2020 Corentin Jabot
+
+Licenced under modified MIT license. See LICENSE.md for details.
+*/
+
+#pragma once
+
+#include <cor3ntin/rangesnext/__detail.hpp>
 #include <ranges>
-#include <vector>
 
 namespace rangesnext {
 
@@ -17,14 +25,19 @@ requires r::view<V> class enumerate_view
 
     V base_ = {};
 
+    template <bool>
+    class sentinel;
+
     template <bool Const>
     struct iterator {
       private:
         using Base = std::conditional_t<Const, const V, V>;
 
         struct result {
-            const r::range_difference_t<V> index;
+            r::range_difference_t<V> index;
             r::range_reference_t<Base> value;
+
+            constexpr bool operator==(const result &other) const = default;
         };
 
         r::iterator_t<Base> current_ = r::iterator_t<Base>();
@@ -32,10 +45,11 @@ requires r::view<V> class enumerate_view
 
         template <bool>
         friend class iterator;
+        template <bool>
+        friend class sentinel;
 
       public:
-        using iterator_category = typename std::iterator_traits<
-            r::iterator_t<Base>>::iterator_category;
+        using iterator_category = decltype(detail::iter_cat<Base>());
         using value_type = result;
         using difference_type = r::range_difference_t<Base>;
 
@@ -59,7 +73,7 @@ requires r::view<V> class enumerate_view
             return std::move(current_);
         }
 
-        constexpr decltype(auto) operator*() const {
+        constexpr auto operator*() const {
             return result{pos_, *current_};
         }
 
@@ -80,7 +94,7 @@ requires r::view<V> class enumerate_view
             }
         }
 
-        constexpr auto operator--() requires r::bidirectional_range<V> {
+        constexpr iterator &operator--() requires r::bidirectional_range<V> {
             --pos_;
             --current_;
             return *this;
@@ -92,23 +106,30 @@ requires r::view<V> class enumerate_view
             return tmp;
         }
 
-        constexpr auto
+        constexpr iterator &
         operator+=(difference_type n) requires r::random_access_range<V> {
             current_ += n;
             pos_ += n;
             return *this;
         }
 
-        constexpr auto
+        constexpr iterator &
         operator-=(difference_type n) requires r::random_access_range<V> {
             current_ -= n;
             pos_ -= n;
             return *this;
         }
 
-        friend constexpr auto
-        operator+(iterator i,
+        friend constexpr iterator
+        operator+(const iterator &i,
                   difference_type n) requires r::random_access_range<V> {
+            return iterator{i.current_ + n,
+                            static_cast<difference_type>(i.pos_ + n)};
+        }
+
+        friend constexpr iterator
+        operator+(difference_type n,
+                  const iterator &i) requires r::random_access_range<V> {
             return iterator{i.current_ + n,
                             static_cast<difference_type>(i.pos_ + n)};
         }
@@ -116,6 +137,13 @@ requires r::view<V> class enumerate_view
         friend constexpr auto
         operator-(iterator i,
                   difference_type n) requires r::random_access_range<V> {
+            return iterator{i.current_ - n,
+                            static_cast<difference_type>(i.pos_ - n)};
+        }
+
+        friend constexpr auto
+        operator-(difference_type n,
+                  iterator i) requires r::random_access_range<V> {
             return iterator{i.current_ - n,
                             static_cast<difference_type>(i.pos_ - n)};
         }
@@ -131,6 +159,12 @@ requires r::view<V> class enumerate_view
             const iterator
                 &y) requires std::equality_comparable<r::iterator_t<Base>> {
             return x.current_ == y.current_;
+        }
+
+        template <bool ConstS>
+        friend constexpr bool operator==(const iterator<Const> &i,
+                                         const sentinel<ConstS> &s) {
+            return i.current_ == s.base();
         }
 
         friend constexpr bool
@@ -162,25 +196,10 @@ requires r::view<V> class enumerate_view
             return x.current_ <=> y.current_;
         }
 
-        friend constexpr iterator
-        operator+(const iterator &x,
-                  difference_type y) requires r::random_access_range<Base> {
-            return iterator{x} += y;
-        }
-        friend constexpr iterator
-        operator+(difference_type x,
-                  const iterator &y) requires r::random_access_range<Base> {
-            return {y + x};
-        }
-        friend constexpr iterator
-        operator-(const iterator &x,
-                  difference_type y) requires r::random_access_range<Base> {
-            return iterator{x} -= y;
-        }
         friend constexpr difference_type
         operator-(const iterator &x,
                   const iterator &y) requires r::random_access_range<Base> {
-            return {y - x};
+            return x.current_ - y.current_;
         }
     };
 
@@ -201,13 +220,8 @@ requires r::view<V> class enumerate_view
             : end_(std::move(end)) {
         }
 
-        constexpr auto base() {
+        constexpr auto base() const {
             return end_;
-        }
-
-        friend constexpr bool operator==(const iterator<Const> &i,
-                                         const sentinel &s) {
-            return i.base() == s.s;
         }
 
         friend constexpr r::range_difference_t<Base>
@@ -293,19 +307,3 @@ struct enumerate_view_fn {
 inline detail::enumerate_view_fn enumerate;
 
 } // namespace rangesnext
-
-int main() {
-    std::array vec{1, 2, 3, 4};
-
-#ifndef UGLY
-    for (auto &&[i, e] : rangesnext::enumerate(vec)) {
-        printf("%lu %d\n", i, e);
-        e *= 10;
-    }
-#else
-    for (std::size_t i = 0; i < 4; ++i) {
-        printf("%lu %d\n", i, vec[i]);
-        vec[i] *= 10;
-    }
-#endif
-}
