@@ -47,7 +47,7 @@ template <r::view... V>
         using result = std::tuple<r::range_reference_t<V>...>;
 
         template <bool IsConst11>
-        friend class product_view::sentinel;
+        friend struct product_view::sentinel;
 
       public:
         using iterator_category = decltype(detail::iter_cat<V...>());
@@ -59,7 +59,7 @@ template <r::view... V>
             : view_(view), its_(std::move(its)...) {
         }
 
-        const auto operator*() const {
+        auto operator*() const {
             return std::apply(
                 [&](const auto &... args) { return result{*(args)...}; }, its_);
         }
