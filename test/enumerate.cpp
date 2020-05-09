@@ -11,6 +11,7 @@ Licenced under modified MIT license. See LICENSE.md for details.
 #include <vector>
 
 namespace r = std::ranges;
+namespace rangesnext = cor3ntin::rangesnext;
 
 template <class RangeT>
 void test_enumerate_with(RangeT &&range) {

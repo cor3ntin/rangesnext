@@ -10,7 +10,7 @@ Licenced under modified MIT license. See LICENSE.md for details.
 #include <ranges>
 #include <tuple>
 
-namespace rangesnext {
+namespace cor3ntin::rangesnext {
 
 namespace r = std::ranges;
 
@@ -329,4 +329,4 @@ struct product_view_fn {
 
 inline detail::product_view_fn product;
 
-} // namespace rangesnext
+} // namespace cor3ntin::rangesnext

@@ -19,7 +19,7 @@ See LICENSE.md for details.
 #include <ranges>
 #include <type_traits>
 
-namespace rangesnext {
+namespace cor3ntin::rangesnext {
 template <typename T>
 class generator;
 
@@ -42,118 +42,113 @@ struct box<T &> {
     T *value = nullptr;
 };
 
-template <typename T>
-class generator_promise {
-  public:
-    using value_type = std::remove_reference_t<T>;
-    using reference_type = std::conditional_t<std::is_reference_v<T>, T, T &>;
-    using pointer_type = value_type *;
-
-    generator_promise() = default;
-
-    generator<T> get_return_object() noexcept;
-
-    constexpr std::suspend_always initial_suspend() const {
-        return {};
-    }
-    constexpr std::suspend_always final_suspend() const {
-        return {};
-    }
-
-    template <typename U = T>
-    requires(!std::is_reference_v<T>) std::suspend_always
-        yield_value(U value) noexcept {
-        m_value = std::forward<U>(value);
-        return {};
-    }
-
-    std::suspend_always yield_value(T &value) noexcept
-        requires std::is_reference_v<T> {
-        m_value = value;
-        return {};
-    }
-
-    reference_type value() noexcept {
-        return *m_value;
-    }
-
-    // Don't allow any use of 'co_await' inside the generator coroutine.
-    template <typename U>
-    std::suspend_never await_transform(U &&value) = delete;
-
-    void return_void() noexcept {
-    }
-
-    void unhandled_exception() {
-        throw;
-    }
-
-  private:
-    box<T> m_value;
-};
-
-struct generator_sentinel {};
-
-template <typename T>
-class generator_iterator {
-    using coroutine_handle = std::coroutine_handle<generator_promise<T>>;
-
-  public:
-    using iterator_category = std::input_iterator_tag;
-    using difference_type = std::ptrdiff_t;
-    using value_type = generator_promise<T>::value_type;
-    using reference = generator_promise<T>::reference_type;
-    using pointer = generator_promise<T>::pointer_type;
-
-    generator_iterator() noexcept = default;
-    generator_iterator(const generator_iterator &) = delete;
-    generator_iterator(generator_iterator &&) = default;
-
-    generator_iterator &operator=(generator_iterator &&) {
-        return *this;
-    }
-
-    explicit generator_iterator(coroutine_handle coroutine) noexcept
-        : m_coroutine(coroutine) {
-    }
-
-    friend bool operator==(const generator_iterator &it,
-                           generator_sentinel) noexcept {
-        return !it.m_coroutine || it.m_coroutine.done();
-    }
-
-    friend bool operator==(generator_sentinel s,
-                           const generator_iterator &it) noexcept {
-        return it == s;
-    }
-
-    generator_iterator &operator++() {
-        m_coroutine.resume();
-        return *this;
-    }
-    void operator++(int) {
-        (void)operator++();
-    }
-
-    reference operator*() const noexcept {
-        return m_coroutine.promise().value();
-    }
-
-    pointer operator->() const noexcept {
-        return std::addressof(operator*());
-    }
-
-  private:
-    coroutine_handle m_coroutine = nullptr;
-};
 } // namespace detail
 
 template <typename T>
 class [[nodiscard]] generator : std::ranges::view_interface<generator<T>> {
-  public:
-    using promise_type = detail::generator_promise<T>;
-    using iterator = detail::generator_iterator<T>;
+    class promise {
+      public:
+        using value_type = std::remove_reference_t<T>;
+        using reference_type =
+            std::conditional_t<std::is_reference_v<T>, T, T &>;
+        using pointer_type = value_type *;
 
+        promise() = default;
+
+        generator<T> get_return_object() noexcept;
+
+        constexpr std::suspend_always initial_suspend() const {
+            return {};
+        }
+        constexpr std::suspend_always final_suspend() const {
+            return {};
+        }
+
+        template <typename U = T>
+        requires(!std::is_reference_v<T>) std::suspend_always
+            yield_value(U value) noexcept {
+            m_value = std::forward<U>(value);
+            return {};
+        }
+
+        std::suspend_always yield_value(T &value) noexcept
+            requires std::is_reference_v<T> {
+            m_value = value;
+            return {};
+        }
+
+        reference_type value() noexcept {
+            return *m_value;
+        }
+
+        // Don't allow any use of 'co_await' inside the generator coroutine.
+        template <typename U>
+        std::suspend_never await_transform(U &&value) = delete;
+
+        void return_void() noexcept {
+        }
+
+        void unhandled_exception() {
+            throw;
+        }
+
+      private:
+        detail::box<T> m_value;
+    };
+
+    struct sentinel {};
+
+    class iterator {
+        using coroutine_handle = std::coroutine_handle<promise>;
+
+      public:
+        using iterator_category = std::input_iterator_tag;
+        using difference_type = std::ptrdiff_t;
+        using value_type = promise::value_type;
+        using reference = promise::reference_type;
+        using pointer = promise::pointer_type;
+
+        iterator() noexcept = default;
+        iterator(const iterator &) = delete;
+        iterator(iterator &&) = default;
+
+        iterator &operator=(iterator &&) {
+            return *this;
+        }
+
+        explicit iterator(coroutine_handle coroutine) noexcept
+            : m_coroutine(coroutine) {
+        }
+
+        friend bool operator==(const iterator &it, sentinel) noexcept {
+            return !it.m_coroutine || it.m_coroutine.done();
+        }
+
+        friend bool operator==(sentinel s, const iterator &it) noexcept {
+            return it == s;
+        }
+
+        iterator &operator++() {
+            m_coroutine.resume();
+            return *this;
+        }
+        void operator++(int) {
+            (void)operator++();
+        }
+
+        reference operator*() const noexcept {
+            return m_coroutine.promise().value();
+        }
+
+        pointer operator->() const noexcept {
+            return std::addressof(operator*());
+        }
+
+      private:
+        coroutine_handle m_coroutine = nullptr;
+    };
+
+  public:
     generator() = default;
 
     generator(generator && other) noexcept : m_coroutine(other.m_coroutine) {
@@ -173,15 +168,15 @@ class [[nodiscard]] generator : std::ranges::view_interface<generator<T>> {
         return *this;
     }
 
-    iterator begin() {
+    auto begin() {
         if (m_coroutine) {
             m_coroutine.resume();
         }
         return iterator{m_coroutine};
     }
 
-    detail::generator_sentinel end() const noexcept {
-        return detail::generator_sentinel{};
+    auto end() const noexcept {
+        return sentinel{};
     }
 
     void swap(generator & other) noexcept {
@@ -189,13 +184,13 @@ class [[nodiscard]] generator : std::ranges::view_interface<generator<T>> {
     }
 
   private:
-    friend class detail::generator_promise<T>;
+    // friend class promise<T>;
 
-    explicit generator(std::coroutine_handle<promise_type> coroutine) noexcept
+    explicit generator(std::coroutine_handle<promise> coroutine) noexcept
         : m_coroutine(coroutine) {
     }
 
-    std::coroutine_handle<promise_type> m_coroutine = nullptr;
+    std::coroutine_handle<promise> m_coroutine = nullptr;
 };
 
 template <typename T>
@@ -203,18 +198,13 @@ void swap(generator<T> &a, generator<T> &b) {
     a.swap(b);
 }
 
-namespace detail {
 template <typename T>
-generator<T> generator_promise<T>::get_return_object() noexcept {
-    using coroutine_handle = std::coroutine_handle<generator_promise<T>>;
+generator<T> generator<T>::promise::get_return_object() noexcept {
+    using coroutine_handle = std::coroutine_handle<generator<T>::promise>;
     return generator<T>{coroutine_handle::from_promise(*this)};
 }
-} // namespace detail
-} // namespace rangesnext
 
-static_assert(std::input_iterator<rangesnext::detail::generator_iterator<int>>);
-static_assert(
-    !std::forward_iterator<rangesnext::detail::generator_iterator<int>>);
-static_assert(!std::copyable<rangesnext::detail::generator_iterator<int>>);
-static_assert(std::ranges::input_range<rangesnext::generator<int>>);
-static_assert(!std::ranges::forward_range<rangesnext::generator<int>>);
+static_assert(std::ranges::input_range<generator<int>>);
+static_assert(!std::ranges::forward_range<generator<int>>);
+
+} // namespace cor3ntin::rangesnext

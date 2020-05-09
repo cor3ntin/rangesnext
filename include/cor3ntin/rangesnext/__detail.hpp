@@ -9,7 +9,7 @@ Licenced under modified MIT license. See LICENSE.md for details.
 #include <functional>
 #include <ranges>
 
-namespace rangesnext::detail {
+namespace cor3ntin::rangesnext::detail {
 
 namespace r = std::ranges;
 
@@ -63,4 +63,4 @@ template <typename F, typename S>
 inline constexpr bool pair_like<std::pair<F, S>> = true;
 template <typename F, typename S>
 inline constexpr bool pair_like<std::tuple<F, S>> = true;
-} // namespace rangesnext::detail
+} // namespace cor3ntin::rangesnext::detail

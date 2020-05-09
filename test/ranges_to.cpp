@@ -20,6 +20,8 @@ Licenced under modified MIT license. See LICENSE.md for details.
 #include <vector>
 
 namespace r = std::ranges;
+namespace rangesnext = cor3ntin::rangesnext;
+
 
 constexpr bool eq(const r::range auto &a, const r::range auto &b) {
     return std::equal(r::begin(a), r::end(a), r::begin(b), r::end(b));

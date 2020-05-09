@@ -10,7 +10,7 @@ Licenced under modified MIT license. See LICENSE.md for details.
 #include <ranges>
 #include <type_traits>
 
-namespace rangesnext {
+namespace cor3ntin::rangesnext {
 
 namespace detail {
 
@@ -369,4 +369,4 @@ to(Rng &&rng, Args &&... args) -> Cont {
         std::forward<Rng>(rng), std::forward<Args>(args)...);
 }
 
-} // namespace rangesnext
+} // namespace cor3ntin::rangesnext

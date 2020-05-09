@@ -9,7 +9,7 @@ Licenced under modified MIT license. See LICENSE.md for details.
 #include <cor3ntin/rangesnext/__detail.hpp>
 #include <ranges>
 
-namespace rangesnext {
+namespace cor3ntin::rangesnext {
 
 namespace r = std::ranges;
 
@@ -312,4 +312,4 @@ struct enumerate_view_fn {
 
 inline detail::enumerate_view_fn enumerate;
 
-} // namespace rangesnext
+} // namespace cor3ntin::rangesnext
