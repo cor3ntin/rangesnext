@@ -2,6 +2,8 @@ Copyright Corentin Jabot 2020 - present
 Copyright Eric Niebler   2013 - present
 Copyright Casey Carter   2015 - present
 Copyright Lewis Baker    2017 - present
+Copyright Lewis Baker    2017 - present
+Copyright Christopher Di Bella 2016 - present
 
 ========================================================
 Boost Software License - Version 1.0 - August 17th, 2003
