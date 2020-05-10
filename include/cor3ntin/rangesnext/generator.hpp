@@ -10,14 +10,8 @@ Licenced under Boost Software License license.
 See LICENSE.md for details.
 */
 
-#include <algorithm>
 #include <coroutine>
-#include <exception>
-#include <iterator>
-#include <numbers>
-#include <optional>
 #include <ranges>
-#include <type_traits>
 
 namespace cor3ntin::rangesnext {
 

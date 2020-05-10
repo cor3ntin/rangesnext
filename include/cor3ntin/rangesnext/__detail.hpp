@@ -13,21 +13,6 @@ namespace cor3ntin::rangesnext::detail {
 
 namespace r = std::ranges;
 
-template <class F, class Tuple, std::size_t... I>
-constexpr decltype(auto) apply_impl(F &&f, const Tuple &t,
-                                    std::index_sequence<I...>) {
-    return f(std::get<std::tuple_size_v<std::remove_reference_t<Tuple>> - 1>(t),
-             std::get<I>(t)...);
-}
-
-template <class F, class Tuple>
-constexpr decltype(auto) apply_last(F &&f, const Tuple &t) {
-    return detail::apply_impl(
-        std::forward<F>(f), t,
-        std::make_index_sequence<std::tuple_size_v<std::remove_cvref_t<Tuple>> -
-                                 1>{});
-}
-
 template <typename T>
 concept has_iterator_category = requires {
     typename std::iterator_traits<r::iterator_t<T>>::iterator_category;
