@@ -46,12 +46,13 @@ template <r::view... V>
         std::tuple<r::iterator_t<V>...> its_;
         using result = std::tuple<r::range_reference_t<V>...>;
 
-        template <bool IsConst11>
+        template <bool IsConst_>
         friend struct product_view::sentinel;
 
       public:
         using iterator_category = decltype(detail::iter_cat<V...>());
-        using value_type = result;
+        using reference_type = result;
+        using value_type = std::tuple<r::range_value_t<V>...>;
         using difference_type = std::common_type_t<r::range_difference_t<V>...>;
 
         iterator() = default;
@@ -106,15 +107,13 @@ template <r::view... V>
         friend constexpr iterator
         operator+(iterator i,
                   difference_type n) requires(r::random_access_range<V> &&...) {
-            i.advance(n);
-            return i;
+            return {i + n};
         }
 
         friend constexpr iterator
         operator+(difference_type n,
                   iterator i) requires(r::random_access_range<V> &&...) {
-            i.advance(n);
-            return i;
+            return {i + n};
         }
 
         friend constexpr iterator
@@ -126,7 +125,7 @@ template <r::view... V>
         friend constexpr difference_type
         operator-(const iterator &x,
                   const iterator &y) requires(r::random_access_range<V> &&...) {
-            return {y - x};
+            return y.distance(x);
         }
 
         constexpr decltype(auto) operator[](difference_type n) const
@@ -188,13 +187,11 @@ template <r::view... V>
         constexpr void next() {
             const auto &v = std::get<N>(view_->bases_);
             auto &it = std::get<N>(its_);
-            if constexpr (N == 0) {
-                it++;
-            } else {
-                if (++it == r::end(v)) {
-                    it = r::begin(v);
-                    next<N - 1>();
-                }
+            if (++it == std::end(v)) { //TODO r::end doesn't compile for istream_view Bug ?
+              if constexpr (N != 0) {
+                it = r::begin(v);
+                next<N - 1>();
+              }
             }
         }
 
@@ -208,6 +205,20 @@ template <r::view... V>
                     prev<N - 1>();
             }
             --it;
+        }
+
+        template <std::size_t N = sizeof...(V) - 1>
+        constexpr difference_type distance(const iterator &other) const {
+            if constexpr (N == 0) {
+                return std::get<0>(other.its_) - std::get<0>(its_);
+            } else {
+              const auto d = this->distance<N-1>(other);
+                auto const scale = r::distance(std::get<N>(view_->bases_));
+                auto const increment =
+                    std::get<N>(other.its_) - std::get<N>(its_);
+
+                return difference_type{(d * scale) + increment};
+            }
         }
 
         template <std::size_t N = sizeof...(V) - 1>
@@ -298,9 +309,10 @@ template <r::view... V>
 
     constexpr auto end() const requires(r::common_range<V> &&...) {
         return std::apply(
-            [&](const auto &... args) {
+            [&](const auto & first, const auto &... args) {
                 using r::end;
-                return iterator<true>(this, end(args)...);
+                using r::begin;
+                return iterator<true>(this, end(first), begin(args)...);
             },
             bases_);
     }

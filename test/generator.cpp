@@ -31,7 +31,8 @@ TEST_CASE("Basic Generator Tests", "[Generator]") {
     SECTION("Move only", "[Generator]") {
         auto ints = std::istringstream{"1 2 5 3 4"};
         auto v = r::istream_view<int>(ints);
-        CHECK_THAT(f(v) | to<std::vector>, Catch::Equals(std::vector{1, 2, 5, 3, 4}));
+        CHECK_THAT(f(v) | to<std::vector>,
+                   Catch::Equals(std::vector{1, 2, 5, 3, 4}));
     }
 
     SECTION("const ints", "[Generator]") {
