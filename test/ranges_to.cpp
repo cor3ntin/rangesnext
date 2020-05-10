@@ -22,7 +22,6 @@ Licenced under Boost Software License license. See LICENSE.md for details.
 namespace r = std::ranges;
 namespace rangesnext = cor3ntin::rangesnext;
 
-
 constexpr bool eq(const r::range auto &a, const r::range auto &b) {
     return std::equal(r::begin(a), r::end(a), r::begin(b), r::end(b));
 }

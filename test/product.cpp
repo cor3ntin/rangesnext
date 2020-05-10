@@ -13,9 +13,7 @@ Licenced under Boost Software License license. See LICENSE.md for details.
     auto symbols = std::istringstream{"+ - *"};
     auto sv = std::ranges::istream_view<char>(symbols);
 
-std::vector a{'a', 'b', 'c', 'd'};
-std::vector b{1, 2, 3};
-std::vector c{0.1, 0.2, 0.3, 0.4, 0.5};
+
 
 {
   auto v = rangesnext::product(sv, a);

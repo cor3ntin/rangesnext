@@ -21,14 +21,15 @@ See LICENSE.md for details.
 
 namespace cor3ntin::rangesnext {
 
-template <typename T>
-class [[nodiscard]] generator : std::ranges::view_interface<generator<T>> {
+template <typename YieldedType,
+          typename ValueType = std::remove_cvref_t<YieldedType>>
+class [[nodiscard]] generator
+    : std::ranges::view_interface<generator<YieldedType, ValueType>> {
     class promise {
       public:
-        using value_type = std::remove_reference_t<T>;
-        using reference_type =
-            std::conditional_t<std::is_reference_v<T>, T, T &>;
-        using pointer_type = value_type *;
+        using value_type = ValueType;
+        using reference_type = std::add_lvalue_reference_t<YieldedType>;
+        using pointer_type = std::remove_reference_t<reference_type> *;
 
         promise() = default;
 
@@ -45,18 +46,19 @@ class [[nodiscard]] generator : std::ranges::view_interface<generator<T>> {
             return {};
         }
 
-        // template <typename U = T>
-        std::suspend_always yield_value(value_type &&value) noexcept {
+        std::suspend_always
+        yield_value(std::remove_reference_t<reference_type> &&value) noexcept {
             m_value = std::addressof(value);
             return {};
         }
 
-        std::suspend_always yield_value(value_type &value) noexcept {
+        std::suspend_always
+        yield_value(std::remove_reference_t<reference_type> &value) noexcept {
             m_value = std::addressof(value);
             return {};
         }
 
-        reference_type value() noexcept {
+        reference_type value() const noexcept {
             return *m_value;
         }
 
@@ -171,8 +173,5 @@ class [[nodiscard]] generator : std::ranges::view_interface<generator<T>> {
 
     std::coroutine_handle<promise> m_coroutine = nullptr;
 };
-
-static_assert(std::ranges::input_range<generator<int>>);
-static_assert(!std::ranges::forward_range<generator<int>>);
 
 } // namespace cor3ntin::rangesnext
