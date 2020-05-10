@@ -106,7 +106,7 @@ static auto get_begin(Rng &&rng) {
     if constexpr (!(std::copyable<It>)) {
         return r::begin(rng);
     } else {
-        using I = range_common_iterator<const Rng &>;
+        using I = range_common_iterator<Rng>;
         I begin = I(r::begin(rng));
         if constexpr (std::is_rvalue_reference_v<decltype(rng)>) {
             return std::make_move_iterator(std::move(begin));
@@ -121,7 +121,7 @@ static auto get_end(Rng &&rng) {
     if constexpr (!(std::copyable<It>)) {
         return r::end(rng);
     } else {
-        using I = range_common_iterator<const Rng &>;
+        using I = range_common_iterator<Rng>;
         I end = I(r::end(rng));
         if constexpr (std::is_rvalue_reference_v<decltype(rng)>) {
             return std::make_move_iterator(std::move(end));
