@@ -58,8 +58,8 @@ requires r::view<V> class enumerate_view
 
       public:
         using iterator_category = decltype(detail::iter_cat<Base>());
-        using reference      = result<r::range_reference_t<Base>>;
-        using value_type     = result<r::range_reference_t<Base>>;
+        using reference = result<r::range_reference_t<Base>>;
+        using value_type = result<r::range_reference_t<Base>>;
         using difference_type = r::range_difference_t<Base>;
 
         iterator() = default;
@@ -159,7 +159,8 @@ requires r::view<V> class enumerate_view
 
         constexpr decltype(auto) operator[](difference_type n) const
             requires r::random_access_range<Base> {
-            return reference{static_cast<count_type>(pos_ + n), *(current_ + n)};
+            return reference{static_cast<count_type>(pos_ + n),
+                             *(current_ + n)};
         }
 
         friend constexpr bool operator==(

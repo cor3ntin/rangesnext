@@ -51,8 +51,8 @@ template <r::view... V>
 
       public:
         using iterator_category = decltype(detail::iter_cat<V...>());
-        using reference       = result;
-        using value_type      = std::tuple<r::range_value_t<V>...>;
+        using reference = result;
+        using value_type = std::tuple<r::range_value_t<V>...>;
         using difference_type = std::common_type_t<r::range_difference_t<V>...>;
 
         iterator() = default;
@@ -187,11 +187,13 @@ template <r::view... V>
         constexpr void next() {
             const auto &v = std::get<N>(view_->bases_);
             auto &it = std::get<N>(its_);
-            if (++it == std::end(v)) { //TODO r::end doesn't compile for istream_view Bug ?
-              if constexpr (N != 0) {
-                it = r::begin(v);
-                next<N - 1>();
-              }
+            if (++it ==
+                std::end(
+                    v)) { // TODO r::end doesn't compile for istream_view Bug ?
+                if constexpr (N != 0) {
+                    it = r::begin(v);
+                    next<N - 1>();
+                }
             }
         }
 
@@ -212,7 +214,7 @@ template <r::view... V>
             if constexpr (N == 0) {
                 return std::get<0>(other.its_) - std::get<0>(its_);
             } else {
-              const auto d = this->distance<N-1>(other);
+                const auto d = this->distance<N - 1>(other);
                 auto const scale = r::distance(std::get<N>(view_->bases_));
                 auto const increment =
                     std::get<N>(other.its_) - std::get<N>(its_);
@@ -309,7 +311,7 @@ template <r::view... V>
 
     constexpr auto end() const requires(r::common_range<V> &&...) {
         return std::apply(
-            [&](const auto & first, const auto &... args) {
+            [&](const auto &first, const auto &... args) {
                 using r::end;
                 using r::begin;
                 return iterator<true>(this, end(first), begin(args)...);

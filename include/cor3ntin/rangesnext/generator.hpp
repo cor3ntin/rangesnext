@@ -10,6 +10,8 @@ Licenced under Boost Software License license.
 See LICENSE.md for details.
 */
 
+#pragma once
+
 #include <coroutine>
 #include <ranges>
 
@@ -17,26 +19,23 @@ namespace cor3ntin::rangesnext {
 
 template <typename YieldedType,
           typename ValueType = std::remove_cvref_t<YieldedType>>
-class [[nodiscard]] generator
-    : std::ranges::view_interface<generator<YieldedType, ValueType>> {
+class [[nodiscard]] generator {
     class promise {
       public:
         using value_type = ValueType;
         using reference = std::add_lvalue_reference_t<YieldedType>;
-        using pointer = std::remove_reference_t<reference> *;
-
-        promise() = default;
+        using pointer = std::add_pointer_t<reference>;
 
         auto get_return_object() noexcept {
-
             return generator{
                 std::coroutine_handle<promise_type>::from_promise(*this)};
         }
 
-        constexpr std::suspend_always initial_suspend() const {
+        std::suspend_always initial_suspend() const {
             return {};
         }
-        constexpr std::suspend_always final_suspend() const {
+
+        std::suspend_always final_suspend() const {
             return {};
         }
 
@@ -69,6 +68,7 @@ class [[nodiscard]] generator
 
       private:
         pointer m_value;
+        friend generator;
     };
 
     struct sentinel {};
@@ -81,13 +81,15 @@ class [[nodiscard]] generator
         using difference_type = std::ptrdiff_t;
         using value_type = promise::value_type;
         using reference = promise::reference;
-        using pointer = promise::pointer;
 
         iterator() noexcept = default;
         iterator(const iterator &) = delete;
-        iterator(iterator &&) = default;
+        iterator(iterator &&o) {
+            std::swap(m_coroutine, o.m_coroutine);
+        }
 
-        iterator &operator=(iterator &&) {
+        iterator &operator=(iterator &&o) {
+            std::swap(m_coroutine, o.m_coroutine);
             return *this;
         }
 
@@ -95,12 +97,14 @@ class [[nodiscard]] generator
             : m_coroutine(coroutine) {
         }
 
-        friend bool operator==(const iterator &it, sentinel) noexcept {
-            return !it.m_coroutine || it.m_coroutine.done();
+        ~iterator() {
+            if (m_coroutine) {
+                m_coroutine.destroy();
+            }
         }
 
-        friend bool operator==(sentinel s, const iterator &it) noexcept {
-            return it == s;
+        bool operator==(sentinel) const noexcept {
+            return !m_coroutine || m_coroutine.done();
         }
 
         iterator &operator++() {
@@ -115,8 +119,9 @@ class [[nodiscard]] generator
             return m_coroutine.promise().value();
         }
 
-        pointer operator->() const noexcept {
-            return std::addressof(operator*());
+        auto operator->() const noexcept
+            requires std::is_reference_v<reference> {
+            return m_coroutine.promise().value();
         }
 
       private:
@@ -128,8 +133,8 @@ class [[nodiscard]] generator
 
     generator() = default;
 
-    generator(generator && other) noexcept : m_coroutine(other.m_coroutine) {
-        other.m_coroutine = nullptr;
+    generator(generator && other) noexcept
+        : m_coroutine(exchange(other.m_coroutine, nullptr)) {
     }
 
     generator(const generator &other) = delete;
@@ -140,16 +145,14 @@ class [[nodiscard]] generator
         }
     }
 
-    generator &operator=(generator other) noexcept {
+    generator &operator=(generator &&other) noexcept {
         swap(other);
         return *this;
     }
 
     auto begin() {
-        if (m_coroutine) {
-            m_coroutine.resume();
-        }
-        return iterator{m_coroutine};
+        m_coroutine.resume();
+        return iterator{std::exchange(m_coroutine, nullptr)};
     }
 
     auto end() const noexcept {
@@ -169,3 +172,11 @@ class [[nodiscard]] generator
 };
 
 } // namespace cor3ntin::rangesnext
+
+namespace std {
+
+template <typename T, typename U>
+inline constexpr bool
+    ranges::enable_view<cor3ntin::rangesnext::generator<T, U>> = true;
+
+}
