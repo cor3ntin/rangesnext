@@ -22,8 +22,8 @@ class [[nodiscard]] generator
     class promise {
       public:
         using value_type = ValueType;
-        using reference_type = std::add_lvalue_reference_t<YieldedType>;
-        using pointer_type = std::remove_reference_t<reference_type> *;
+        using reference = std::add_lvalue_reference_t<YieldedType>;
+        using pointer = std::remove_reference_t<reference> *;
 
         promise() = default;
 
@@ -41,18 +41,18 @@ class [[nodiscard]] generator
         }
 
         std::suspend_always
-        yield_value(std::remove_reference_t<reference_type> &&value) noexcept {
+        yield_value(std::remove_reference_t<reference> &&value) noexcept {
             m_value = std::addressof(value);
             return {};
         }
 
         std::suspend_always
-        yield_value(std::remove_reference_t<reference_type> &value) noexcept {
+        yield_value(std::remove_reference_t<reference> &value) noexcept {
             m_value = std::addressof(value);
             return {};
         }
 
-        reference_type value() const noexcept {
+        reference value() const noexcept {
             return *m_value;
         }
 
@@ -68,7 +68,7 @@ class [[nodiscard]] generator
         }
 
       private:
-        pointer_type m_value;
+        pointer m_value;
     };
 
     struct sentinel {};
@@ -80,8 +80,8 @@ class [[nodiscard]] generator
         using iterator_category = std::input_iterator_tag;
         using difference_type = std::ptrdiff_t;
         using value_type = promise::value_type;
-        using reference = promise::reference_type;
-        using pointer = promise::pointer_type;
+        using reference = promise::reference;
+        using pointer = promise::pointer;
 
         iterator() noexcept = default;
         iterator(const iterator &) = delete;

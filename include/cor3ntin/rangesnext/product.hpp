@@ -51,8 +51,8 @@ template <r::view... V>
 
       public:
         using iterator_category = decltype(detail::iter_cat<V...>());
-        using reference_type = result;
-        using value_type = std::tuple<r::range_value_t<V>...>;
+        using reference       = result;
+        using value_type      = std::tuple<r::range_value_t<V>...>;
         using difference_type = std::common_type_t<r::range_difference_t<V>...>;
 
         iterator() = default;
