@@ -11,6 +11,9 @@ Licenced under Boost Software License license. See LICENSE.md for details.
 
 namespace cor3ntin::rangesnext {
 
+struct from_range_t{};
+inline constexpr from_range_t from_range;
+
 namespace detail {
 
 namespace r = std::ranges;
@@ -142,6 +145,9 @@ struct unwrap<wrap<Cont>, Rng, Args...> {
     static auto from_rng(int) -> decltype(Cont(range_common_iterator<Rng>(),
                                                range_common_iterator<Rng>(),
                                                std::declval<Args>()...));
+    template <typename R>
+    static auto from_rng(long) -> decltype(Cont(from_range, std::declval<Rng>(), std::declval<Args>()...));
+
     using type =
         std::remove_cvref_t<std::remove_pointer_t<decltype(from_rng<Rng>(0))>>;
 };
@@ -258,6 +264,10 @@ struct to_container {
                 return Cont(std::forward<Rng>(rng),
                             std::forward<Args>(args)...);
             }
+            else if constexpr (std::constructible_from<Cont, from_range_t, Rng, Args...>) {
+                return Cont(from_range, std::forward<Rng>(rng),
+                            std::forward<Args>(args)...);
+            }
             // we can do push back
             else if constexpr (insertable_container<Cont> &&
                                r::sized_range<Rng> &&
@@ -323,17 +333,17 @@ struct to_container {
         }
     };
 
-    template <typename Rng, typename ToContainer>
+    /*template <typename Rng, typename ToContainer>
     requires r::input_range<Rng> &&
         recursive_container_convertible<container_t<ToContainer, Rng>,
                                         Rng> inline constexpr friend auto
         operator|(Rng &&rng, fn<ToContainer> (*)(to_container))
             -> container_t<ToContainer, Rng> {
         return std::move(fn<ToContainer>{}(std::forward<Rng>(rng)));
-    }
+    }*/
 
     template <typename Rng, typename ToContainer>
-    requires r::input_range<Rng> &&recursive_container_convertible<
+    requires r::input_range<Rng> && recursive_container_convertible<
         container_t<ToContainer, Rng>, Rng> constexpr friend auto
     operator|(Rng &&rng, fn<ToContainer> &&) -> container_t<ToContainer, Rng> {
         return std::move(fn<ToContainer>{}(std::forward<Rng>(rng)));

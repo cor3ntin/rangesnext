@@ -25,13 +25,13 @@ TEST_CASE("Basic Generator Tests", "[Generator]") {
 
     auto assert_same = [&](auto &&rng) {
         auto g = f(rng);
-        CHECK_THAT(g | to<std::vector>, Catch::Equals(rng | to<std::vector>));
+        CHECK_THAT(g | to<std::vector>(), Catch::Equals(rng | to<std::vector>()));
     };
 
     SECTION("Move only", "[Generator]") {
         auto ints = std::istringstream{"1 2 5 3 4"};
         auto v = r::istream_view<int>(ints);
-        CHECK_THAT(f(v) | to<std::vector>,
+        CHECK_THAT(f(v) | to<std::vector>(),
                    Catch::Equals(std::vector{1, 2, 5, 3, 4}));
     }
 
@@ -76,5 +76,5 @@ TEST_CASE("Zip Generator", "[Generator]") {
     std::vector<std::tuple<int, double>> expected = {
         {0, 4}, {1, 5}, {2, 6}, {3, 7}};
 
-    CHECK_THAT(z | to<std::vector>, Catch::Equals(expected));
+    CHECK_THAT(z | to<std::vector>(), Catch::Equals(expected));
 }

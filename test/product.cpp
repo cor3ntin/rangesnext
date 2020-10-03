@@ -35,7 +35,7 @@ TEST_CASE("Basic Product Tests", "product") {
             std::same_as<r::range_reference_t<R>, std::tuple<char &, int &>>);
         static_assert(std::same_as<r::range_value_t<R>, std::tuple<char, int>>);
 
-        CHECK_THAT((v | to<std::vector<std::tuple<char, int>>>),
+        CHECK_THAT((v | to<std::vector<std::tuple<char, int>>>()),
                    Catch::Equals(expected));
     }
 
@@ -53,7 +53,7 @@ TEST_CASE("Basic Product Tests", "product") {
             std::same_as<r::range_reference_t<R>, std::tuple<char &, int &>>);
         static_assert(std::same_as<r::range_value_t<R>, std::tuple<char, int>>);
 
-        CHECK_THAT((v | to<std::vector<std::tuple<char, int>>>),
+        CHECK_THAT((v | to<std::vector<std::tuple<char, int>>>()),
                    Catch::Equals(expected));
     }
 
@@ -83,7 +83,7 @@ TEST_CASE("Basic Product Tests", "product") {
 
 
         CHECK(r::distance(v.begin(), v.end()) == 2 * 3 * 2);
-        CHECK_THAT((v | to<std::vector<std::tuple<char, int, std::string_view>>>),
+        CHECK_THAT((v | to<std::vector<std::tuple<char, int, std::string_view>>>()),
                    Catch::Equals(expected));
     }
 }

@@ -39,17 +39,12 @@ TEMPLATE_PRODUCT_TEST_CASE("Conversion from container to vector", "",
     STATIC_REQUIRE(std::same_as<decltype(simple_container |
                                          rangesnext::to<std::vector<type>>()),
                                 std::vector<type>>);
-    STATIC_REQUIRE(std::same_as<decltype(simple_container |
-                                         rangesnext::to<std::vector<type>>),
-                                std::vector<type>>);
     STATIC_REQUIRE(
-        std::same_as<decltype(simple_container | rangesnext::to<std::vector>),
+        std::same_as<decltype(simple_container | rangesnext::to<std::vector>()),
                      std::vector<type>>);
     CHECK_THAT((simple_container | rangesnext::to<std::vector<type>>()),
                Catch::Matchers::Equals(std::vector<type>{0, 1, 2, 3, 4}));
-    CHECK_THAT((simple_container | rangesnext::to<std::vector<type>>),
-               Catch::Matchers::Equals(std::vector<type>{0, 1, 2, 3, 4}));
-    CHECK_THAT((simple_container | rangesnext::to<std::vector>),
+    CHECK_THAT((simple_container | rangesnext::to<std::vector>()),
                Catch::Matchers::Equals(std::vector<type>{0, 1, 2, 3, 4}));
 }
 
@@ -78,11 +73,9 @@ TEMPLATE_TEST_CASE("Conversion from map to vector", "", (std::map<int, int>),
     STATIC_REQUIRE(
         std::same_as<decltype(simple_container | rangesnext::to<ex>()), ex>);
     STATIC_REQUIRE(
-        std::same_as<decltype(simple_container | rangesnext::to<ex>), ex>);
-    STATIC_REQUIRE(
-        std::same_as<decltype(simple_container | rangesnext::to<std::vector>),
+        std::same_as<decltype(simple_container | rangesnext::to<std::vector>()),
                      ex_const>);
-    CHECK(eq(simple_container, simple_container | rangesnext::to<ex_const>));
+    CHECK(eq(simple_container, simple_container | rangesnext::to<ex_const>()));
 }
 
 TEMPLATE_TEST_CASE("Conversion from vector to associative containers", "",
@@ -100,9 +93,9 @@ TEMPLATE_TEST_CASE("Conversion from vector to associative containers", "",
     STATIC_REQUIRE(
         std::same_as<decltype(vec | rangesnext::to<TestType>()), TestType>);
     STATIC_REQUIRE(
-        std::same_as<decltype(vec | rangesnext::to<TestType>), TestType>);
-    auto res = vec | rangesnext::to<TestType> |
-               rangesnext::to<std::vector<std::pair<int, int>>>;
+        std::same_as<decltype(vec | rangesnext::to<TestType>()), TestType>);
+    auto res = vec | rangesnext::to<TestType>() |
+               rangesnext::to<std::vector<std::pair<int, int>>>();
     CHECK_THAT(res, Catch::Matchers::UnorderedEquals(vec));
 }
 
@@ -116,8 +109,8 @@ TEST_CASE(
     using ex = std::map<int, int>;
 
     STATIC_REQUIRE(std::same_as<decltype(rangesnext::to<std::map>(vec)), ex>);
-    CHECK(eq(vec, vec | rangesnext::to<std::map> |
-                      rangesnext::to<std::vector<std::pair<int, int>>>));
+    CHECK(eq(vec, vec | rangesnext::to<std::map>() |
+                      rangesnext::to<std::vector<std::pair<int, int>>>()));
 }
 
 TEST_CASE("Conversion from vector to associative containers with unspecified "
@@ -134,20 +127,20 @@ TEST_CASE("Conversion from vector to associative containers with unspecified "
                                     vec, std::less<int>{}, alloc())),
                                 ex>);
     CHECK(eq(vec, rangesnext::to<std::map>(vec, std::less<int>{}, alloc()) |
-                      rangesnext::to<std::vector<std::pair<int, int>>>));
+                      rangesnext::to<std::vector<std::pair<int, int>>>()));
 }
 
 TEST_CASE("Non-sized ranges") {
     auto ints = std::vector{1, 2, 3, 4, 5, 6};
     auto view = ints | std::views::filter([](int x) { return (x % 2) != 0; });
-    std::vector<int> vec = view | rangesnext::to<std::vector>;
+    std::vector<int> vec = view | rangesnext::to<std::vector>();
     CHECK_THAT(vec, Catch::Matchers::Equals(std::vector{1, 3, 5}));
 }
 
 TEST_CASE("Move only iterators") {
     auto ints = std::istringstream{"0 1  2   3     4"};
     std::vector<int> vec =
-        r::istream_view<int>(ints) | rangesnext::to<std::vector>;
+        r::istream_view<int>(ints) | rangesnext::to<std::vector>();
     CHECK_THAT(vec, Catch::Matchers::Equals(std::vector{0, 1, 2, 3, 4}));
 }
 
@@ -155,4 +148,34 @@ TEST_CASE("Nested views") {
     std::list<std::list<int>> lst = {{0, 1, 2, 3}, {4, 5, 6, 7}};
     auto vec1 = rangesnext::to<std::vector<std::vector<int>>>(lst);
     auto vec2 = rangesnext::to<std::vector<std::vector<double>>>(lst);
+}
+
+template<typename T>
+struct vector_with_range_ctr : public std::vector<T>
+{
+    using std::vector<T>::vector;
+
+    template <std::ranges::input_range rng>
+    vector_with_range_ctr(cor3ntin::rangesnext::from_range_t, rng && r)
+    {
+        if constexpr(std::ranges::sized_range<rng>) {
+            this->reserve(std::ranges::size(r));
+        }
+        std::ranges::copy(r, std::back_inserter(*this));
+    }
+};
+
+template<std::ranges::input_range rng>
+vector_with_range_ctr(cor3ntin::rangesnext::from_range_t, rng&&)
+-> vector_with_range_ctr<std::ranges::range_value_t<rng>>;
+
+
+TEST_CASE("from_range_t") {
+    std::list lst{0, 1, 2, 3, 4};
+    STATIC_REQUIRE(std::same_as<decltype(rangesnext::to<vector_with_range_ctr>(lst)), vector_with_range_ctr<int>>);
+    STATIC_REQUIRE(std::same_as<decltype(lst | rangesnext::to<vector_with_range_ctr<int>>()), vector_with_range_ctr<int>>);
+    CHECK_THAT((lst | rangesnext::to<vector_with_range_ctr<int>>()),
+               Catch::Matchers::Equals(vector_with_range_ctr<int>{0, 1, 2, 3, 4}));
+    CHECK_THAT((lst | rangesnext::to<vector_with_range_ctr>()),
+               Catch::Matchers::Equals(vector_with_range_ctr<int>{0, 1, 2, 3, 4}));
 }
