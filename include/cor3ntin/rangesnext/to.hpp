@@ -8,6 +8,8 @@ Licenced under Boost Software License license. See LICENSE.md for details.
 #include <algorithm>
 #include <iterator>
 #include <ranges>
+#include <tuple>
+#include <utility>
 
 namespace cor3ntin::rangesnext {
 
@@ -276,7 +278,7 @@ struct to_container {
                 Cont c(std::forward<Args...>(args)...);
                 c.reserve(r::size(rng));
                 r::copy(std::move(begin), std::move(end),
-                        std::back_inserter(c));
+                        std::inserter(c, std::end(c)));
                 return c;
             }
             // default case
@@ -289,7 +291,7 @@ struct to_container {
             else if constexpr (std::constructible_from<Cont, Args...>) {
                 Cont c(std::forward<Args>(args)...);
                 r::copy(std::move(begin), std::move(end),
-                        std::back_inserter(c));
+                        std::inserter(c, std::end(c)));
                 return c;
             } else {
                 static_assert(always_false_v<Cont>,
@@ -331,47 +333,49 @@ struct to_container {
             return impl<container_t<C, Rng, Args...>>(
                 std::forward<Rng>(rng), std::forward<Args>(args)...);
         }
+        std::tuple<Args...> args;
     };
 
-    /*template <typename Rng, typename ToContainer>
-    requires r::input_range<Rng> &&
-        recursive_container_convertible<container_t<ToContainer, Rng>,
-                                        Rng> inline constexpr friend auto
-        operator|(Rng &&rng, fn<ToContainer> (*)(to_container))
-            -> container_t<ToContainer, Rng> {
-        return std::move(fn<ToContainer>{}(std::forward<Rng>(rng)));
-    }*/
-
-    template <typename Rng, typename ToContainer>
-    requires r::input_range<Rng> && recursive_container_convertible<
-        container_t<ToContainer, Rng>, Rng> constexpr friend auto
-    operator|(Rng &&rng, fn<ToContainer> &&) -> container_t<ToContainer, Rng> {
-        return std::move(fn<ToContainer>{}(std::forward<Rng>(rng)));
+    template <typename Rng, typename ToContainer, typename... Args>
+    requires r::input_range<Rng> && recursive_container_convertible<container_t<ToContainer, Rng, Args...>, Rng>
+        constexpr friend auto
+        operator|(Rng &&rng, fn<ToContainer, Args...> && f) -> container_t<ToContainer, Rng, Args...> {
+      return [&]<size_t...I>(std::index_sequence<I...>)
+      {
+        return f(std::forward<Rng>(rng), std::forward<Args>(std::get<I>(f.args))...);
+      }(std::make_index_sequence<sizeof...(Args)>());
     }
 };
+
 template <typename ToContainer, typename... Args>
 using to_container_fn = to_container::fn<ToContainer, Args...>;
 } // namespace detail
 
-template <template <typename...> class ContT, typename... Args>
-constexpr auto to(detail::to_container = {})
+template <template <typename...> class ContT, typename... Args, detail::to_container = {}>
+requires (!std::ranges::range<Args>&&...)
+constexpr auto to(Args&&... args)
     -> detail::to_container_fn<detail::wrap<ContT>, Args...> {
-    return {};
+    detail::to_container_fn<detail::wrap<ContT>, Args...> fn;
+    fn.args = std::forward_as_tuple(std::forward<Args>(args)...);
+    return fn;
 }
 
-template <template <typename...> class ContT, typename Rng, typename... Args>
+template <template <typename...> class ContT, std::ranges::input_range Rng, typename... Args>
 requires std::ranges::range<Rng> constexpr auto to(Rng &&rng, Args &&... args) {
     return detail::to_container_fn<detail::wrap<ContT>, Args...>{}(
         std::forward<Rng>(rng), std::forward<Args>(args)...);
 }
 
-template <typename Cont, typename... Args>
-constexpr auto to(detail::to_container = {})
+template <typename Cont, typename... Args, detail::to_container = {}>
+requires (!std::ranges::range<Args>&&...)
+constexpr auto to(Args&&...args)
     -> detail::to_container_fn<Cont, Args...> {
-    return {};
+    detail::to_container_fn<Cont, Args...> fn;
+    fn.args = std::forward_as_tuple(std::forward<Args>(args)...);
+    return fn;
 }
 
-template <typename Cont, typename Rng, typename... Args>
+template <typename Cont, std::ranges::input_range Rng, typename... Args>
 requires detail::recursive_container_convertible<Cont, Rng> constexpr auto
 to(Rng &&rng, Args &&... args) -> Cont {
     return detail::to_container_fn<Cont, Args...>{}(

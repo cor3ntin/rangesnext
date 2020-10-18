@@ -42,7 +42,7 @@ requires r::view<V> class enumerate_view
 
         template <typename T>
         struct result {
-            count_type index;
+            const count_type index;
             T value;
 
             constexpr bool operator==(const result &other) const = default;

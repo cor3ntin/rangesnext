@@ -128,6 +128,8 @@ TEST_CASE("Conversion from vector to associative containers with unspecified "
                                 ex>);
     CHECK(eq(vec, rangesnext::to<std::map>(vec, std::less<int>{}, alloc()) |
                       rangesnext::to<std::vector<std::pair<int, int>>>()));
+
+    vec | rangesnext::to<std::vector<std::pair<int, int>>>(alloc());
 }
 
 TEST_CASE("Non-sized ranges") {
