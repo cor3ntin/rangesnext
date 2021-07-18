@@ -113,13 +113,10 @@ static auto get_begin(Rng &&rng) {
     } else {
         using I = range_common_iterator<Rng>;
         I begin = I(r::begin(rng));
-        if constexpr (std::is_rvalue_reference_v<decltype(rng)>) {
-            return std::make_move_iterator(std::move(begin));
-        } else {
-            return begin;
-        }
+        return begin;
     }
 }
+
 template <r::range Rng>
 static auto get_end(Rng &&rng) {
     using It = r::iterator_t<Rng>;
@@ -128,11 +125,7 @@ static auto get_end(Rng &&rng) {
     } else {
         using I = range_common_iterator<Rng>;
         I end = I(r::end(rng));
-        if constexpr (std::is_rvalue_reference_v<decltype(rng)>) {
-            return std::make_move_iterator(std::move(end));
-        } else {
-            return end;
-        }
+        return end;
     }
 }
 
@@ -161,7 +154,7 @@ concept reservable_container = requires(T &c, Rng &&rng) {
 
 template <typename T>
 concept insertable_container = requires(T &c, T::value_type &e) {
-    c.push_back(e);
+    c.insert(c.end(), e);
 };
 
 struct to_container {
@@ -251,7 +244,6 @@ struct to_container {
             return *(*this + n);
         }
     };
-
     template <typename ToContainer, typename Rng, typename... Args>
     using container_t = typename unwrap<ToContainer, Rng, Args...>::type;
 
@@ -261,6 +253,15 @@ struct to_container {
         template <typename Cont, typename Rng, typename It, typename Sentinel>
         constexpr static auto from_iterators(It begin, Sentinel end, Rng &&rng,
                                              Args &&... args) {
+            auto inserter = [](Cont & c) {
+                if constexpr(requires{c.push_back(std::declval<std::ranges::range_reference_t<Rng>>());}) {
+                    return std::back_inserter(c);
+                }
+                else {
+                    return std::inserter(c, std::end(c));
+                }
+            };
+
             // copy or move (optimization)
             if constexpr (std::constructible_from<Cont, Rng, Args...>) {
                 return Cont(std::forward<Rng>(rng),
@@ -277,8 +278,7 @@ struct to_container {
                                std::constructible_from<Cont, Args...>) {
                 Cont c(std::forward<Args...>(args)...);
                 c.reserve(r::size(rng));
-                r::copy(std::move(begin), std::move(end),
-                        std::inserter(c, std::end(c)));
+                r::copy(std::move(begin), std::move(end), inserter(c));
                 return c;
             }
             // default case
@@ -290,8 +290,7 @@ struct to_container {
             // Covers the Move only iterator case
             else if constexpr (std::constructible_from<Cont, Args...>) {
                 Cont c(std::forward<Args>(args)...);
-                r::copy(std::move(begin), std::move(end),
-                        std::inserter(c, std::end(c)));
+                r::copy(std::move(begin), std::move(end), inserter(c));
                 return c;
             } else {
                 static_assert(always_false_v<Cont>,
@@ -309,16 +308,14 @@ struct to_container {
         }
 
         template <container_like Cont, r::range Rng>
-            requires recursive_container_convertible<Cont, Rng> &&
+        requires recursive_container_convertible<Cont, Rng> &&
                 std::constructible_from<Cont, Args...> &&
-            (!container_convertible<Cont, Rng>)&&(
-                !std::constructible_from<
-                    Cont, Rng>)constexpr static auto impl(Rng &&rng,
-                                                          Args &&... args) {
+                (!container_convertible<Cont, Rng> && !std::constructible_from<Cont, Rng>)
+
+            constexpr static auto impl(Rng &&rng, Args &&... args) {
             auto begin = get_begin(std::forward<Rng>(rng));
             auto end = get_end(std::forward<Rng>(rng));
-            using It =
-                iterator<decltype(begin), decltype(end), inner_range_t<Cont>>;
+            using It = iterator<decltype(begin), decltype(end), inner_range_t<Cont>>;
             return from_iterators<Cont, Rng>(It(std::move(begin)), end,
                                              std::forward<Rng>(rng),
                                              std::forward<Args>(args)...);
@@ -340,8 +337,7 @@ struct to_container {
     requires r::input_range<Rng> && recursive_container_convertible<container_t<ToContainer, Rng, Args...>, Rng>
         constexpr friend auto
         operator|(Rng &&rng, fn<ToContainer, Args...> && f) -> container_t<ToContainer, Rng, Args...> {
-      return [&]<size_t...I>(std::index_sequence<I...>)
-      {
+      return [&]<size_t...I>(std::index_sequence<I...>) {
         return f(std::forward<Rng>(rng), std::forward<Args>(std::get<I>(f.args))...);
       }(std::make_index_sequence<sizeof...(Args)>());
     }
