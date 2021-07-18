@@ -97,30 +97,6 @@ namespace detail {
 template <template <class...> class T>
 struct wrap {};
 
-template <r::range Rng>
-static auto get_begin(Rng &&rng) {
-    using It = r::iterator_t<Rng>;
-    if constexpr (!(std::copyable<It>)) {
-        return r::begin(rng);
-    } else {
-        using I = range_common_iterator<Rng>;
-        I begin = I(r::begin(rng));
-        return begin;
-    }
-}
-
-template <r::range Rng>
-static auto get_end(Rng &&rng) {
-    using It = r::iterator_t<Rng>;
-    if constexpr (!(std::copyable<It>)) {
-        return r::end(rng);
-    } else {
-        using I = range_common_iterator<Rng>;
-        I end = I(r::end(rng));
-        return end;
-    }
-}
-
 template <typename Cont, typename Rng, typename... Args>
 struct unwrap {
     using type = Cont;
@@ -171,27 +147,20 @@ struct to_container {
             } else if constexpr (std::constructible_from<Cont, from_range_t, Rng, Args...>) {
                 return Cont(from_range, std::forward<Rng>(rng), std::forward<Args>(args)...);
             }
-            // we can do push back
-            else if constexpr (insertable_container<Cont> && r::sized_range<Rng> && reservable_container<Cont> &&
-                               std::constructible_from<Cont, Args...>) {
-                Cont c(std::forward<Args...>(args)...);
-                c.reserve(r::size(rng));
-                r::copy(std::forward<Rng>(rng), inserter(c));
-                return c;
+            else if constexpr (r::common_range<Rng> && std::constructible_from<Cont, r::iterator_t<Rng>, r::iterator_t<Rng>, Args...>) {
+                return Cont(r::begin(rng), r::end(rng), std::forward<Args>(args)...);
             }
-            // default case
-            else {
-                auto begin = get_begin(std::forward<Rng>(rng));
-                auto end = get_end(std::forward<Rng>(rng));
-                if constexpr (std::constructible_from<Cont, decltype(begin), decltype(end), Args...>) {
-                    return Cont(std::move(begin), std::move(end), std::forward<Args>(args)...);
-                } else if constexpr (std::constructible_from<Cont, Args...> && container_convertible<Cont, Rng>) {
-                    Cont c(std::forward<Args>(args)...);
-                    r::copy(std::move(begin), std::move(end), inserter(c));
-                    return c;
-                } else {
-                    static_assert(always_false_v<Cont>, "Can't construct a container");
+            // we can do push back
+            else if constexpr (insertable_container<Cont> &&
+                               std::constructible_from<Cont, Args...>) {
+                Cont c(std::forward<Args>(args)...);
+                if constexpr(r::sized_range<Rng> && reservable_container<Cont>) {
+                    c.reserve(r::size(rng));
+                    r::copy(std::forward<Rng>(rng), inserter(c));
                 }
+                return c;
+            } else {
+                static_assert(always_false_v<Cont>, "Can't construct a container");
             }
         }
 
