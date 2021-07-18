@@ -85,22 +85,20 @@ concept container_convertible =
     !r::view<C> && r::input_range<R> &&
     std::convertible_to<r::range_reference_t<R>, container_value_t<C>>;
 
-template <typename View>
-constexpr bool has_inner_range = r::input_range<container_value_t<View>>;
-
-template <typename View>
-using inner_range_t =
-    std::conditional_t<has_inner_range<View>, container_value_t<View>, View>;
-
 template <class C, class R>
-constexpr bool recursive_container_convertible_impl =
-    container_convertible<C, R> ||
-    (has_inner_range<C> && has_inner_range<R> &&
-     recursive_container_convertible_impl<inner_range_t<C>, inner_range_t<R>>);
+concept recursive_container_convertible = container_convertible<C, R> ||
+(r::input_range<r::range_reference_t<R>> && requires {
+     { to<r::range_value_t<C>>(std::declval<r::range_reference_t<R>>()) }
+     -> std::convertible_to<r::range_value_t<C>>;
+    });
 
-template <class C, class R>
-concept recursive_container_convertible =
-    recursive_container_convertible_impl<C, R>;
+}
+
+template <typename Cont, std::ranges::input_range Rng, typename... Args>
+requires detail::recursive_container_convertible<Cont, Rng>
+constexpr auto to(Rng &&rng, Args &&... args) -> Cont;
+
+namespace detail {
 
 template <template <class...> class T>
 struct wrap {};
@@ -147,9 +145,9 @@ struct unwrap<wrap<Cont>, Rng, Args...> {
         std::remove_cvref_t<std::remove_pointer_t<decltype(from_rng<Rng>(0))>>;
 };
 
-template <typename T, typename Rng>
-concept reservable_container = requires(T &c, Rng &&rng) {
-    c.reserve(decltype(r::size(rng))());
+template <typename T>
+concept reservable_container = requires(T &c) {
+    c.reserve(0);
 };
 
 template <typename T>
@@ -159,100 +157,14 @@ concept insertable_container = requires(T &c, T::value_type &e) {
 
 struct to_container {
   private:
-    template <typename I, typename Sentinel, typename Value>
-    struct iterator {
-      private:
-        I it_;
-
-      public:
-        using difference_type =
-            typename std::iterator_traits<I>::difference_type;
-        using value_type = Value;
-        using reference = Value;
-        using pointer = typename std::iterator_traits<I>::pointer;
-        using iterator_category =
-            typename std::iterator_traits<I>::iterator_category;
-
-        iterator() = default;
-
-        iterator(auto it) : it_(std::move(it)) {
-        }
-
-        friend bool operator==(const iterator &a, const iterator &b) {
-            return a.it_ == b.it_;
-        }
-
-        friend bool operator==(const iterator &a, const Sentinel &b) {
-            return a.it_ == b;
-        }
-
-        reference operator*() const {
-            return to_container::fn<value_type>()(*it_);
-        }
-
-        auto &operator++() {
-            ++it_;
-            return *this;
-        }
-        auto operator++(int) requires std::copyable<I> {
-            auto tmp = *this;
-            ++it_;
-            return tmp;
-        }
-
-        auto &operator--() requires std::derived_from<
-            iterator_category, std::bidirectional_iterator_tag> {
-            --it_;
-            return *this;
-        }
-        auto operator--(int) requires std::derived_from<
-            iterator_category, std::bidirectional_iterator_tag> {
-            auto tmp = *this;
-            --it_;
-            return tmp;
-        }
-        auto operator+=(difference_type n) requires std::derived_from<
-            iterator_category, std::random_access_iterator_tag> {
-            it_ += n;
-            return *this;
-        }
-        auto operator-=(difference_type n) requires std::derived_from<
-            iterator_category, std::random_access_iterator_tag> {
-            it_ += n;
-            return *this;
-        }
-        friend auto
-        operator+(iterator it, difference_type n) requires std::derived_from<
-            iterator_category, std::random_access_iterator_tag> {
-            return it += n;
-        }
-        friend auto
-        operator-(iterator it, difference_type n) requires std::derived_from<
-            iterator_category, std::random_access_iterator_tag> {
-            return it -= n;
-        }
-
-        friend auto
-        operator-(iterator a, iterator b) requires std::derived_from<
-            iterator_category, std::random_access_iterator_tag> {
-            return a.it_ - b.it_;
-        }
-
-        auto operator[](difference_type n) const
-            requires std::derived_from<iterator_category,
-                                       std::random_access_iterator_tag> {
-            return *(*this + n);
-        }
-    };
     template <typename ToContainer, typename Rng, typename... Args>
     using container_t = typename unwrap<ToContainer, Rng, Args...>::type;
 
     template <typename C, typename... Args>
     struct fn {
       private:
-        template <typename Cont, typename Rng, typename It, typename Sentinel>
-        constexpr static auto from_iterators(It begin, Sentinel end, Rng &&rng,
-                                             Args &&... args) {
+        template <typename Cont, typename Rng>
+        constexpr static auto construct(Rng &&rng, Args &&... args) {
             auto inserter = [](Cont & c) {
                 if constexpr(requires{c.push_back(std::declval<std::ranges::range_reference_t<Rng>>());}) {
                     return std::back_inserter(c);
@@ -274,51 +186,61 @@ struct to_container {
             // we can do push back
             else if constexpr (insertable_container<Cont> &&
                                r::sized_range<Rng> &&
-                               reservable_container<Cont, Rng> &&
+                               reservable_container<Cont> &&
                                std::constructible_from<Cont, Args...>) {
                 Cont c(std::forward<Args...>(args)...);
                 c.reserve(r::size(rng));
-                r::copy(std::move(begin), std::move(end), inserter(c));
+                r::copy(std::forward<Rng>(rng), inserter(c));
                 return c;
             }
             // default case
-            else if constexpr (std::constructible_from<Cont, It, Sentinel,
-                                                       Args...>) {
-                return Cont(std::move(begin), std::move(end),
+            else {
+                auto begin = get_begin(std::forward<Rng>(rng));
+                auto end   = get_end(std::forward<Rng>(rng));
+                if constexpr (std::constructible_from<Cont, decltype(begin), decltype(end), Args...>){
+                    return Cont(std::move(begin), std::move(end),
                             std::forward<Args>(args)...);
-            }
-            // Covers the Move only iterator case
-            else if constexpr (std::constructible_from<Cont, Args...>) {
-                Cont c(std::forward<Args>(args)...);
-                r::copy(std::move(begin), std::move(end), inserter(c));
-                return c;
-            } else {
-                static_assert(always_false_v<Cont>,
-                              "Can't construct a container");
+                }
+                else if constexpr (std::constructible_from<Cont, Args...> && container_convertible<Cont, Rng>) {
+                    Cont c(std::forward<Args>(args)...);
+                    r::copy(std::move(begin), std::move(end), inserter(c));
+                    return c;
+                } else {
+                    static_assert(always_false_v<Cont>,
+                                  "Can't construct a container");
+                }
             }
         }
 
         template <container_like Cont, r::range Rng>
-        requires container_convertible<Cont, Rng> constexpr static auto
+        requires container_convertible<Cont, Rng>
+        constexpr static auto
         impl(Rng &&rng, Args &&... args) {
-            return from_iterators<Cont>(get_begin(std::forward<Rng>(rng)),
-                                        get_end(std::forward<Rng>(rng)),
-                                        std::forward<Rng>(rng),
-                                        std::forward<Args>(args)...);
+            return construct<Cont>(std::forward<Rng>(rng), std::forward<Args>(args)...);
         }
 
         template <container_like Cont, r::range Rng>
         requires recursive_container_convertible<Cont, Rng> &&
                 std::constructible_from<Cont, Args...> &&
                 (!container_convertible<Cont, Rng> && !std::constructible_from<Cont, Rng>)
-
-            constexpr static auto impl(Rng &&rng, Args &&... args) {
-            auto begin = get_begin(std::forward<Rng>(rng));
-            auto end = get_end(std::forward<Rng>(rng));
-            using It = iterator<decltype(begin), decltype(end), inner_range_t<Cont>>;
-            return from_iterators<Cont, Rng>(It(std::move(begin)), end,
-                                             std::forward<Rng>(rng),
-                                             std::forward<Args>(args)...);
+        constexpr static auto impl(Rng &&rng, Args &&... args) {
+            auto inserter = [](Cont & c) {
+                if constexpr(requires{c.push_back(std::declval<std::ranges::range_value_t<Cont>>());}) {
+                    return std::back_inserter(c);
+                }
+                else {
+                    return std::inserter(c, std::end(c));
+                }
+            };
+            Cont c(std::forward<Args...>(args)...);
+            if constexpr(r::sized_range<Rng> && reservable_container<Cont>) {
+                c.reserve(r::size(rng));
+            }
+            auto v = rng | r::views::transform ([](auto&& elem) {
+                return to<r::range_value_t<C>>(elem);
+            });
+            r::move(std::move(v), inserter(c));
+            return c;
         }
 
       public:
@@ -372,7 +294,8 @@ constexpr auto to(Args&&...args)
 }
 
 template <typename Cont, std::ranges::input_range Rng, typename... Args>
-requires detail::recursive_container_convertible<Cont, Rng> constexpr auto
+requires detail::recursive_container_convertible<Cont, Rng>
+constexpr auto
 to(Rng &&rng, Args &&... args) -> Cont {
     return detail::to_container_fn<Cont, Args...>{}(
         std::forward<Rng>(rng), std::forward<Args>(args)...);

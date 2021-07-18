@@ -31,11 +31,11 @@ class [[nodiscard]] generator {
                 std::coroutine_handle<promise_type>::from_promise(*this)};
         }
 
-        std::suspend_always initial_suspend() const {
+        std::suspend_always initial_suspend() const noexcept {
             return {};
         }
 
-        std::suspend_always final_suspend() const {
+        std::suspend_always final_suspend() const noexcept {
             return {};
         }
 
