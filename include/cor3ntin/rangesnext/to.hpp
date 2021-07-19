@@ -156,8 +156,8 @@ struct to_container {
                 Cont c(std::forward<Args>(args)...);
                 if constexpr(r::sized_range<Rng> && reservable_container<Cont>) {
                     c.reserve(r::size(rng));
-                    r::copy(std::forward<Rng>(rng), inserter(c));
                 }
+                r::copy(std::forward<Rng>(rng), inserter(c));
                 return c;
             } else {
                 static_assert(always_false_v<Cont>, "Can't construct a container");
@@ -174,20 +174,9 @@ struct to_container {
         requires recursive_container_convertible<Cont, Rng> && std::constructible_from<Cont, Args...> &&
             (!container_convertible<Cont, Rng> &&
              !std::constructible_from<Cont, Rng>)constexpr static auto impl(Rng &&rng, Args &&...args) {
-            auto inserter = [](Cont &c) {
-                if constexpr (requires { c.push_back(std::declval<std::ranges::range_value_t<Cont>>()); }) {
-                    return std::back_inserter(c);
-                } else {
-                    return std::inserter(c, std::end(c));
-                }
-            };
-            Cont c(std::forward<Args...>(args)...);
-            if constexpr (r::sized_range<Rng> && reservable_container<Cont>) {
-                c.reserve(r::size(rng));
-            }
-            auto v = rng | r::views::transform([](auto &&elem) { return to<r::range_value_t<C>>(elem); });
-            r::move(std::move(v), inserter(c));
-            return c;
+
+            return to<Cont, Args...>(rng | r::views::transform([](auto &&elem)
+            { return to<r::range_value_t<Cont>>(std::forward<decltype(elem)>(elem)); }), std::forward<Args>(args)...);
         }
 
       public:
