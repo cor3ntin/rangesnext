@@ -115,7 +115,9 @@ struct unwrap<wrap<Cont>, Rng, Args...> {
 
 template <typename T>
 concept reservable_container = requires(T &c) {
-    c.reserve(0);
+    c.reserve(r::size(c));
+    {c.capacity()} -> std::same_as<decltype(r::size(c))>;
+    {c.max_size()} -> std::same_as<decltype(r::size(c))>;
 };
 
 template <typename T>
