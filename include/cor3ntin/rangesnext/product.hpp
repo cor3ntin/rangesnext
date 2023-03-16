@@ -56,7 +56,7 @@ template <r::view... V>
         using difference_type = std::common_type_t<r::range_difference_t<V>...>;
 
         iterator() = default;
-        iterator(parent *view, r::iterator_t<V>... its)
+        explicit iterator(parent *view, r::iterator_t<V>... its)
             : view_(view), its_(std::move(its)...) {
         }
 
